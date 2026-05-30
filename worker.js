@@ -19,11 +19,21 @@
  *
  * 如果你的子域名不是 api. / img. 开头，请在下面 CONFIG 里写死。
  * 调试：访问 https://你的域名/__health 查看识别到的角色和上游。
+ *
+ * ============== 命名约定（零配置的前提）==============
+ * 留空下面的 CONFIG 即为全自动，不限制你的根域，只约定子域第一段的关键词：
+ *   · API 域名：第一段含 "api"   （如 api / bgmapi / bangumi-api）
+ *   · 图片域名：第一段含 "img"   （如 img / bgmimg / pic / cdn / lain）
+ *   · 两者用同一个根域           （example.com / foo.net 都行，随便）
+ * 改写时会把 API 域名第一段里的 "api" 换成 "img"、根域原样保留：
+ *   bgmapi.example.com  ->  bgmimg.example.com   （自动）
+ * 不符合该约定（比如图片域名不含 img、或两域名根域不同）时，
+ * 才需要在 CONFIG 里写死 API_HOST / IMG_HOST。
  */
 
-// ====== CONFIG（可选，留空则按子域前缀自动识别）======
-const API_HOST = ""; // 例如 "api.example.com"，留空自动识别
-const IMG_HOST = ""; // 例如 "img.example.com"，留空自动识别
+// ====== CONFIG（可选；留空=全自动，按上面的命名约定识别）======
+const API_HOST = ""; // 仅当域名不符合命名约定时才填，如 "data.example.com"
+const IMG_HOST = ""; // 仅当域名不符合命名约定时才填，如 "pics.example.net"
 
 // 上游（不要改）
 const BGM_API = "api.bgm.tv";
@@ -136,16 +146,18 @@ function resolveRole(host) {
   if (API_HOST && host === API_HOST) return "api";
   if (IMG_HOST && host === IMG_HOST) return "img";
   const label = (host.split(".")[0] || "").toLowerCase();
-  if (label.startsWith("img") || label.startsWith("pic") ||
-      label.startsWith("lain") || label.startsWith("cdn")) return "img";
+  // 命名约定：第一段含 img/pic/lain/cdn -> 图片；其余默认 API
+  if (/(img|pic|lain|cdn)/.test(label)) return "img";
   return "api"; // 默认按 API 处理
 }
 
-// 改写 API 响应时，把图片指向哪个域名
+// 改写 API 响应时，把图片指向哪个域名（保留根域，只把第一段的 api 换成 img）
 function imgHostFor(host) {
   if (IMG_HOST) return IMG_HOST;
   const parts = host.split(".");
-  parts[0] = "img"; // api.example.com -> img.example.com
+  const first = parts[0];
+  // bgmapi -> bgmimg, api -> img；若没有 api 字样则前缀加 img-
+  parts[0] = /api/i.test(first) ? first.replace(/api/i, "img") : "img-" + first;
   return parts.join(".");
 }
 
