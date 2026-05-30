@@ -2,38 +2,26 @@
  * Bangumi 反向代理 - Cloudflare Worker 版
  * --------------------------------------------------
  * 代理：
- *   api.bgm.tv   (v0 REST API)   ->  你的 API 自定义域名
- *   lain.bgm.tv  (图片 CDN)       ->  你的图片自定义域名
+ *   api.bgm.tv   (v0 REST API)   ->  你的 API 域名
+ *   lain.bgm.tv  (图片 CDN)       ->  你的图片域名
  *
  * 关键点：API 返回的 JSON 里图片地址是写死的 lain.bgm.tv 绝对 URL，
  * 本 Worker 会自动把响应体里的 lain.bgm.tv 改写成你的图片域名，
  * 这样客户端拿到数据后只访问你的域名，不会再碰被污染的 bgm.tv。
  *
- * ============== 部署（复制粘贴即可）==============
- *  1. Cloudflare Dashboard -> Workers & Pages -> Create -> 把本文件全部贴进去 -> Deploy
- *  2. 进入该 Worker -> Settings -> Domains & Routes -> Add Custom Domain
- *     绑定两个子域，例如：
- *         api.example.com
- *         img.example.com
- *  3. 完成。下面的 CONFIG 一般不用改（按 api./img. 前缀自动识别）。
+ * ============== 部署（3 步）==============
+ *  1. 把下面 CONFIG 里的 API_HOST / IMG_HOST 改成你的两个域名。
+ *  2. Cloudflare Dashboard -> Workers & Pages -> Create -> 贴入本文件 -> Deploy。
+ *  3. 进入该 Worker -> Settings -> Domains & Routes -> Add Custom Domain，
+ *     把上面填的两个域名都绑上去。
  *
- * 如果你的子域名不是 api. / img. 开头，请在下面 CONFIG 里写死。
+ * 域名随便取、根域不限，只要这里填对哪个是 API、哪个是图片即可。
  * 调试：访问 https://你的域名/__health 查看识别到的角色和上游。
- *
- * ============== 命名约定（零配置的前提）==============
- * 留空下面的 CONFIG 即为全自动，不限制你的根域，只约定子域第一段的关键词：
- *   · API 域名：第一段含 "api"   （如 api / bgmapi / bangumi-api）
- *   · 图片域名：第一段含 "img"   （如 img / bgmimg / pic / cdn / lain）
- *   · 两者用同一个根域           （example.com / foo.net 都行，随便）
- * 改写时会把 API 域名第一段里的 "api" 换成 "img"、根域原样保留：
- *   bgmapi.example.com  ->  bgmimg.example.com   （自动）
- * 不符合该约定（比如图片域名不含 img、或两域名根域不同）时，
- * 才需要在 CONFIG 里写死 API_HOST / IMG_HOST。
  */
 
-// ====== CONFIG（可选；留空=全自动，按上面的命名约定识别）======
-const API_HOST = ""; // 仅当域名不符合命名约定时才填，如 "data.example.com"
-const IMG_HOST = ""; // 仅当域名不符合命名约定时才填，如 "pics.example.net"
+// ====== CONFIG（必填：填你的两个域名）======
+const API_HOST = "api.example.com"; // 你的 API 域名（代理 api.bgm.tv）
+const IMG_HOST = "img.example.com"; // 你的图片域名（代理 lain.bgm.tv）
 
 // 上游（不要改）
 const BGM_API = "api.bgm.tv";
@@ -61,18 +49,19 @@ export default {
         host,
         role,
         upstream: role === "img" ? BGM_IMG : BGM_API,
-        imgHostForRewrite: imgHostFor(host),
+        apiHost: API_HOST,
+        imgHost: IMG_HOST,
       });
     }
 
     return role === "img"
       ? handleImage(request, url, ctx)
-      : handleApi(request, url, host);
+      : handleApi(request, url);
   },
 };
 
 // ---------- API：代理 + 改写响应体里的 lain.bgm.tv ----------
-async function handleApi(request, url, host) {
+async function handleApi(request, url) {
   const upstreamURL = `https://${BGM_API}${url.pathname}${url.search}`;
 
   const upstreamReq = new Request(upstreamURL, {
@@ -89,9 +78,8 @@ async function handleApi(request, url, host) {
 
   // 文本/JSON 才改写
   if (ct.includes("application/json") || ct.includes("text/")) {
-    const imgHost = imgHostFor(host);
     let text = await resp.text();
-    text = text.split(BGM_IMG).join(imgHost); // 同时覆盖 https://lain.bgm.tv 和裸域名
+    text = text.split(BGM_IMG).join(IMG_HOST); // 同时覆盖 https://lain.bgm.tv 和裸域名
     headers.delete("content-length");
     headers.delete("content-encoding"); // body 已是解压后的文本
     return new Response(text, {
@@ -143,22 +131,9 @@ async function handleImage(request, url, ctx) {
 
 // ---------- 工具函数 ----------
 function resolveRole(host) {
-  if (API_HOST && host === API_HOST) return "api";
-  if (IMG_HOST && host === IMG_HOST) return "img";
-  const label = (host.split(".")[0] || "").toLowerCase();
-  // 命名约定：第一段含 img/pic/lain/cdn -> 图片；其余默认 API
-  if (/(img|pic|lain|cdn)/.test(label)) return "img";
-  return "api"; // 默认按 API 处理
-}
-
-// 改写 API 响应时，把图片指向哪个域名（保留根域，只把第一段的 api 换成 img）
-function imgHostFor(host) {
-  if (IMG_HOST) return IMG_HOST;
-  const parts = host.split(".");
-  const first = parts[0];
-  // bgmapi -> bgmimg, api -> img；若没有 api 字样则前缀加 img-
-  parts[0] = /api/i.test(first) ? first.replace(/api/i, "img") : "img-" + first;
-  return parts.join(".");
+  if (host === IMG_HOST) return "img";
+  if (host === API_HOST) return "api";
+  return "api"; // 未匹配的域名默认按 API 处理
 }
 
 function cleanRequestHeaders(h) {
