@@ -1,0 +1,58 @@
+# =====================================================================
+# Bangumi 反向代理 - Caddy 版 (Caddyfile)
+# ---------------------------------------------------------------------
+# 代理：
+#   api.example.com  ->  api.bgm.tv   (会改写 JSON 里的 lain.bgm.tv)
+#   img.example.com  ->  lain.bgm.tv  (图片)
+#
+# Caddy 的好处是自动签发/续期 HTTPS，省事。
+#
+# ⚠️ 重要：改写响应体需要 replace-response 插件，标准版 Caddy 没有内置。
+#    用以下任一方式获得带该插件的 Caddy：
+#       方式A（推荐）: xcaddy build --with github.com/caddyserver/replace-response
+#       方式B: 官方下载页自定义构建 https://caddyserver.com/download 勾选 replace-response
+#
+# 使用步骤：
+#   1. 把所有 example.com 改成你自己的域名。
+#   2. 确保 api./img. 两个子域名的 DNS 已解析到本机公网 IP（Caddy 要靠它签证书）。
+#   3. caddy run --config ./bangumi-proxy.Caddyfile
+#      或放到 /etc/caddy/Caddyfile 后 systemctl reload caddy
+# =====================================================================
+
+# ---- API: api.example.com -> api.bgm.tv ----
+api.example.com {
+	# 把 JSON 里写死的图片域名换成你自己的图片域名（需要 replace-response 插件）
+	replace "lain.bgm.tv" "img.example.com"
+
+	reverse_proxy https://api.bgm.tv {
+		header_up Host api.bgm.tv
+		# 关掉压缩，确保 replace 能改到响应体
+		header_up Accept-Encoding ""
+		transport http {
+			tls
+			tls_server_name api.bgm.tv
+		}
+	}
+
+	# CORS（浏览器端调用时放开；纯服务端调用可删掉 header 与 @opts 这两段）
+	header Access-Control-Allow-Origin "*"
+	header Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+	header Access-Control-Allow-Headers "Authorization,Content-Type"
+	@opts method OPTIONS
+	respond @opts 204
+}
+
+# ---- Images: img.example.com -> lain.bgm.tv ----
+img.example.com {
+	reverse_proxy https://lain.bgm.tv {
+		header_up Host lain.bgm.tv
+		transport http {
+			tls
+			tls_server_name lain.bgm.tv
+		}
+	}
+
+	# 浏览器侧缓存（Caddy 标准版无服务端缓存；如需边缘缓存可用 cache-handler 插件）
+	header Cache-Control "public, max-age=2592000"
+	header Access-Control-Allow-Origin "*"
+}
