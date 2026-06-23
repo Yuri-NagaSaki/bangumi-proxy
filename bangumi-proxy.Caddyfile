@@ -25,7 +25,7 @@ api.example.com {
 	header @robots Cache-Control "no-store"
 	header @robots CDN-Cache-Control "no-store"
 	header @robots Cloudflare-CDN-Cache-Control "no-store"
-	respond @robots "User-agent: *\nDisallow: /\n" 200
+	respond @robots "User-agent: *\nAllow: /\n" 200
 
 	# 把 JSON 里写死的图片域名换成你自己的图片域名（需要 replace-response 插件）
 	replace "lain.bgm.tv" "img.example.com"
@@ -55,7 +55,7 @@ img.example.com {
 	header @robots Cache-Control "no-store"
 	header @robots CDN-Cache-Control "no-store"
 	header @robots Cloudflare-CDN-Cache-Control "no-store"
-	respond @robots "User-agent: *\nDisallow: /\n" 200
+	respond @robots "User-agent: *\nAllow: /\n" 200
 
 	reverse_proxy https://lain.bgm.tv {
 		header_up Host lain.bgm.tv

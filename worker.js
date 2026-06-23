@@ -29,7 +29,7 @@ const BGM_IMG = "lain.bgm.tv";
 
 // 图片缓存时长（秒），默认 30 天
 const IMG_CACHE_TTL = 30 * 24 * 60 * 60;
-const ROBOTS_TXT = "User-agent: *\nDisallow: /\n";
+const ROBOTS_TXT = "User-agent: *\nAllow: /\n";
 const X_ROBOTS_TAG = "noindex, nofollow, noarchive, nosnippet, noimageindex";
 
 export default {
