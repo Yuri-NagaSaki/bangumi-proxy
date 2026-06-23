@@ -21,6 +21,12 @@
 
 # ---- API: api.example.com -> api.bgm.tv ----
 api.example.com {
+	@robots path /robots.txt
+	header @robots Cache-Control "no-store"
+	header @robots CDN-Cache-Control "no-store"
+	header @robots Cloudflare-CDN-Cache-Control "no-store"
+	respond @robots "User-agent: *\nDisallow: /\n" 200
+
 	# 把 JSON 里写死的图片域名换成你自己的图片域名（需要 replace-response 插件）
 	replace "lain.bgm.tv" "img.example.com"
 
@@ -38,12 +44,19 @@ api.example.com {
 	header Access-Control-Allow-Origin "*"
 	header Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS"
 	header Access-Control-Allow-Headers "Authorization,Content-Type"
+	header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex"
 	@opts method OPTIONS
 	respond @opts 204
 }
 
 # ---- Images: img.example.com -> lain.bgm.tv ----
 img.example.com {
+	@robots path /robots.txt
+	header @robots Cache-Control "no-store"
+	header @robots CDN-Cache-Control "no-store"
+	header @robots Cloudflare-CDN-Cache-Control "no-store"
+	respond @robots "User-agent: *\nDisallow: /\n" 200
+
 	reverse_proxy https://lain.bgm.tv {
 		header_up Host lain.bgm.tv
 		transport http {
@@ -55,4 +68,5 @@ img.example.com {
 	# 浏览器侧缓存（Caddy 标准版无服务端缓存；如需边缘缓存可用 cache-handler 插件）
 	header Cache-Control "public, max-age=2592000"
 	header Access-Control-Allow-Origin "*"
+	header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex"
 }

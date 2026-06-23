@@ -29,6 +29,8 @@ const BGM_IMG = "lain.bgm.tv";
 
 // 图片缓存时长（秒），默认 30 天
 const IMG_CACHE_TTL = 30 * 24 * 60 * 60;
+const ROBOTS_TXT = "User-agent: *\nDisallow: /\n";
+const X_ROBOTS_TAG = "noindex, nofollow, noarchive, nosnippet, noimageindex";
 
 export default {
   async fetch(request, env, ctx) {
@@ -37,10 +39,21 @@ export default {
 
     // CORS 预检
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders() });
+      return new Response(null, { status: 204, headers: noIndexHeaders(corsHeaders()) });
     }
 
     const role = resolveRole(host);
+
+    if (url.pathname === "/robots.txt") {
+      return new Response(ROBOTS_TXT, {
+        headers: noIndexHeaders({
+          "content-type": "text/plain; charset=utf-8",
+          "cache-control": "no-store",
+          "cdn-cache-control": "no-store",
+          "cloudflare-cdn-cache-control": "no-store",
+        }),
+      });
+    }
 
     // 健康检查 / 调试
     if (url.pathname === "/__health") {
@@ -75,6 +88,7 @@ async function handleApi(request, url) {
   const ct = resp.headers.get("content-type") || "";
   const headers = new Headers(resp.headers);
   setCors(headers);
+  setNoIndex(headers);
 
   // 文本/JSON 才改写
   if (ct.includes("application/json") || ct.includes("text/")) {
@@ -108,6 +122,7 @@ async function handleImage(request, url, ctx) {
     const r = new Response(hit.body, hit);
     r.headers.set("x-cache", "HIT");
     setCors(r.headers);
+    setNoIndex(r.headers);
     return r;
   }
 
@@ -121,6 +136,7 @@ async function handleImage(request, url, ctx) {
   const out = new Response(resp.body, resp);
   out.headers.set("x-cache", "MISS");
   setCors(out.headers);
+  setNoIndex(out.headers);
 
   if (resp.status === 200) {
     out.headers.set("cache-control", `public, max-age=${IMG_CACHE_TTL}`);
@@ -162,8 +178,18 @@ function setCors(headers) {
   headers.set("Access-Control-Allow-Origin", "*");
 }
 
+function setNoIndex(headers) {
+  headers.set("X-Robots-Tag", X_ROBOTS_TAG);
+}
+
+function noIndexHeaders(headers) {
+  const out = new Headers(headers);
+  setNoIndex(out);
+  return out;
+}
+
 function json(obj) {
   return new Response(JSON.stringify(obj, null, 2), {
-    headers: { "content-type": "application/json; charset=utf-8", ...corsHeaders() },
+    headers: noIndexHeaders({ "content-type": "application/json; charset=utf-8", ...corsHeaders() }),
   });
 }
