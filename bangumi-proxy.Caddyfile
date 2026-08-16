@@ -2,7 +2,7 @@
 # Bangumi 反向代理 - Caddy 版 (Caddyfile)
 # ---------------------------------------------------------------------
 # 代理：
-#   api.example.com  ->  api.bgm.tv   (会改写 JSON 里的 lain.bgm.tv)
+#   api.example.com  ->  api.bgm.tv   (会改写 JSON 和 3xx Location 里的 lain.bgm.tv)
 #   img.example.com  ->  lain.bgm.tv  (图片)
 #
 # Caddy 的好处是自动签发/续期 HTTPS，省事。
@@ -34,6 +34,8 @@ api.example.com {
 		header_up Host api.bgm.tv
 		# 关掉压缩，确保 replace 能改到响应体
 		header_up Accept-Encoding ""
+		# /v0/subjects/{id}/image 会返回 302，客户端会读取 Location。
+		header_down Location "^https?://lain\\.bgm\\.tv/(.*)$" "https://img.example.com/$1"
 		transport http {
 			tls
 			tls_server_name api.bgm.tv

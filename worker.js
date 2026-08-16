@@ -6,7 +6,7 @@
  *   lain.bgm.tv  (图片 CDN)       ->  你的图片域名
  *
  * 关键点：API 返回的 JSON 里图片地址是写死的 lain.bgm.tv 绝对 URL，
- * 本 Worker 会自动把响应体里的 lain.bgm.tv 改写成你的图片域名，
+ * 本 Worker 会自动把响应体与 3xx Location 里的 lain.bgm.tv 改写成你的图片域名，
  * 这样客户端拿到数据后只访问你的域名，不会再碰被污染的 bgm.tv。
  *
  * ============== 部署（3 步）==============
