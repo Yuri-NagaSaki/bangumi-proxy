@@ -81,12 +81,13 @@ async function handleApi(request, url) {
     method: request.method,
     headers: cleanRequestHeaders(request.headers),
     body: hasBody(request.method) ? request.body : undefined,
-    redirect: "follow",
+    redirect: "manual",
   });
 
   const resp = await fetch(upstreamReq);
   const ct = resp.headers.get("content-type") || "";
   const headers = new Headers(resp.headers);
+  rewriteLocation(headers);
   setCors(headers);
   setNoIndex(headers);
 
@@ -180,6 +181,13 @@ function setCors(headers) {
 
 function setNoIndex(headers) {
   headers.set("X-Robots-Tag", X_ROBOTS_TAG);
+}
+
+function rewriteLocation(headers) {
+  const location = headers.get("Location");
+  if (location) {
+    headers.set("Location", location.split(BGM_IMG).join(IMG_HOST));
+  }
 }
 
 function noIndexHeaders(headers) {
