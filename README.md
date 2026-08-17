@@ -48,6 +48,41 @@ img.example.com  ->  lain.bgm.tv
 
 这份 Nginx 模板不启用本地 `proxy_cache`。图片缓存交给 Cloudflare 和浏览器，避免小硬盘被缓存文件占满。
 
+## 匿名公开端点合同
+
+推荐的 `bangumi-proxy.nginx.conf` 是无凭据公开镜像。它不会把浏览器的
+`Authorization`、`Cookie`、`Origin` 或 `Referer` 转发到上游，并会隐藏上游
+`Set-Cookie`。需要登录、OAuth 或用户 access token 的调用必须直接使用官方 API，
+不能经过公开镜像。
+
+端点方法固定为：
+
+| 端点 | 允许方法 |
+| --- | --- |
+| `/v0/search/subjects` | `POST`, `OPTIONS` |
+| `/v0/subjects/{id}` 与 `/v0/subjects/{id}/image` | `GET`, `HEAD`, `OPTIONS` |
+| 其他公开 API 路径 | `GET`, `HEAD`, `POST`, `OPTIONS` |
+| 图片域名 | `GET`, `HEAD`, `OPTIONS` |
+
+CORS 使用 `Access-Control-Allow-Origin: *`，只允许匿名请求所需的 `Accept` 和
+`Content-Type` headers，不返回 `Access-Control-Allow-Credentials`，也不声明
+`PUT`、`PATCH` 或 `DELETE`。部署后至少验证：
+
+```bash
+curl -i -X OPTIONS https://api.example.com/v0/search/subjects \
+  -H 'Origin: https://client.example' \
+  -H 'Access-Control-Request-Method: POST' \
+  -H 'Access-Control-Request-Headers: content-type'
+curl -i -X GET https://api.example.com/v0/search/subjects
+curl -i -X POST https://api.example.com/v0/subjects/26803
+curl -I https://api.example.com/v0/subjects/26803
+curl -I https://img.example.com/pic/cover/l/1b/3e/26803_s2xEw.jpg
+```
+
+其中 search 的 `GET` 与 subject 的 `POST` 应返回 `405`；合法 preflight/read 应返回
+对应的 `204`/上游状态，且响应不得包含 `Access-Control-Allow-Credentials` 或
+`Set-Cookie`。
+
 ## SEO 处理
 
 反代域名默认返回：
